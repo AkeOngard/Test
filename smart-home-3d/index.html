@@ -1,0 +1,1302 @@
+<!doctype html>
+<html lang="th">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>บ้านอัจฉริยะ 3D</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bai+Jamjuree:wght@500;600;700&family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans+Thai:wght@400;500;600&display=swap">
+<style>
+/* Layout: one-screen app. The live 3D model fills the left, a scrolling control column sits on the right; on phones they stack. */
+:root {
+  --bg: #E8ECEB; --surface: #F7F9F8; --sunk: #DDE3E2; --ink: #18232A; --muted: #58676C; --line: #C9D2D1;
+  --accent: #C47604; --accent-ink: #7E4C00; --accent-soft: rgba(196,118,4,.16); --cool: #21708F;
+  --good: #2D7A4E; --warn: #A65F0C; --crit: #B83A2E;
+  --scene-bg: #D9E1E0; --ground: #C3CDC1; --wall: #F3F4F1; --floor: #E3DCCF; --furn: #B7BFBD; --path: #CFCBC2; --tree: #7F9C7A; --glass: #8FC3D6;
+  --f-display: "Bai Jamjuree", "IBM Plex Sans Thai", system-ui, sans-serif;
+  --f-body: "IBM Plex Sans Thai", "Noto Sans Thai", "Leelawadee UI", system-ui, sans-serif;
+  --f-mono: "IBM Plex Mono", ui-monospace, Menlo, Consolas, monospace;
+  --panel-w: 400px;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --bg: #0F1519; --surface: #161F25; --sunk: #0B1013; --ink: #E2E9EA; --muted: #8C9BA0; --line: #25323A;
+  --accent: #F0A63A; --accent-ink: #F6C27A; --accent-soft: rgba(240,166,58,.18); --cool: #5DB3D4;
+  --good: #5FC28A; --warn: #E89A4C; --crit: #F07262;
+  --scene-bg: #0B1115; --ground: #18221E; --wall: #4E5A60; --floor: #343A3F; --furn: #48535A; --path: #2A3034; --tree: #3D5A44; --glass: #3F7890;
+  color-scheme: dark;
+} }
+:root[data-theme="dark"] {
+  --bg: #0F1519; --surface: #161F25; --sunk: #0B1013; --ink: #E2E9EA; --muted: #8C9BA0; --line: #25323A;
+  --accent: #F0A63A; --accent-ink: #F6C27A; --accent-soft: rgba(240,166,58,.18); --cool: #5DB3D4;
+  --good: #5FC28A; --warn: #E89A4C; --crit: #F07262;
+  --scene-bg: #0B1115; --ground: #18221E; --wall: #4E5A60; --floor: #343A3F; --furn: #48535A; --path: #2A3034; --tree: #3D5A44; --glass: #3F7890;
+  color-scheme: dark;
+}
+
+html, body { height: 100%; }
+[hidden] { display: none !important; }
+body { margin: 0; background: var(--bg); color: var(--ink); font: 14.5px/1.55 var(--f-body); -webkit-font-smoothing: antialiased; }
+* { box-sizing: border-box; }
+h1, h2 { font-family: var(--f-display); margin: 0; text-wrap: balance; }
+.mono { font-family: var(--f-mono); font-variant-numeric: tabular-nums; }
+button { font: inherit; color: inherit; }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+.app { display: grid; grid-template-columns: minmax(0,1fr) var(--panel-w); height: 100%; }
+
+/* Stage */
+.stage { position: relative; overflow: hidden; background: var(--scene-bg); min-height: 0; }
+.stage canvas { display: block; width: 100%; height: 100%; touch-action: none; }
+.hud { position: absolute; display: flex; gap: 8px; align-items: center; flex-wrap: wrap; pointer-events: none; }
+.hud > * { pointer-events: auto; }
+.hud-tl { top: 16px; left: max(16px, env(safe-area-inset-left, 0px)); right: 180px; }
+.hud-tr { top: 16px; right: 16px; }
+.chip { display: inline-flex; align-items: center; gap: 6px; padding: 5px 10px; border-radius: 999px; background: color-mix(in srgb, var(--surface) 88%, transparent); border: 1px solid var(--line); font-size: 12.5px; color: var(--muted); backdrop-filter: blur(6px); }
+.chip b { color: var(--ink); font-weight: 500; }
+.tbtn { cursor: pointer; padding: 6px 12px; border-radius: 8px; border: 1px solid var(--line); background: var(--surface); font-size: 13px; }
+.tbtn:hover { border-color: var(--muted); }
+.tbtn[aria-pressed="true"] { background: var(--ink); color: var(--surface); border-color: var(--ink); }
+
+.labels { position: absolute; inset: 0; pointer-events: none; }
+.rlabel { position: absolute; left: 0; top: 0; transform: translate(-50%, -100%); pointer-events: auto; cursor: pointer; display: grid; gap: 0; text-align: center; padding: 4px 9px 5px; border-radius: 8px; border: 1px solid var(--line); background: color-mix(in srgb, var(--surface) 90%, transparent); font-size: 12px; line-height: 1.35; white-space: nowrap; }
+.rlabel b { font-family: var(--f-display); font-weight: 600; font-size: 12.5px; }
+.rlabel .mono { font-size: 11.5px; color: var(--muted); }
+.rlabel.sel { border-color: var(--accent); box-shadow: 0 0 0 2px var(--accent-soft); }
+.rlabel.alarm { border-color: var(--crit); color: var(--crit); }
+.rlabel.alarm .mono { color: var(--crit); }
+.htip { position: absolute; left: 0; top: 0; transform: translate(12px, 12px); pointer-events: none; padding: 6px 10px; border-radius: 8px; background: var(--ink); color: var(--surface); font-size: 12.5px; white-space: nowrap; }
+.htip small { display: block; opacity: .75; }
+
+.ov { position: absolute; left: max(16px, env(safe-area-inset-left, 0px)); bottom: calc(16px + env(safe-area-inset-bottom, 0px)); width: min(340px, calc(100% - 32px)); background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 12px 14px 14px; box-shadow: 0 10px 30px rgba(0,0,0,.14); display: grid; gap: 10px; }
+.ov-h { display: flex; align-items: start; gap: 10px; }
+.ov-h > div { flex: 1; min-width: 0; }
+.ov-h h2 { font-size: 16px; }
+.ov-h small { color: var(--muted); }
+.x { cursor: pointer; border: 0; background: transparent; width: 30px; height: 30px; border-radius: 8px; font-size: 18px; line-height: 1; color: var(--muted); }
+.x:hover { background: var(--sunk); color: var(--ink); }
+.nogl { position: absolute; inset: 0; pointer-events: none; display: grid; place-items: center; padding: 24px; text-align: center; color: var(--muted); }
+
+/* Panel */
+.panel { overflow-y: auto; border-left: 1px solid var(--line); background: var(--bg); padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); padding-block: 18px 28px; display: grid; gap: 22px; align-content: start; min-width: 0; }
+.ph { display: flex; gap: 12px; align-items: start; justify-content: space-between; }
+.ph h1 { font-size: 22px; font-weight: 700; letter-spacing: -.01em; }
+.ph p { margin: 2px 0 0; color: var(--muted); font-size: 13px; }
+.pill { flex: none; display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px; border-radius: 999px; font-size: 12px; border: 1px solid var(--line); color: var(--muted); white-space: nowrap; }
+.pill::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: var(--muted); }
+.pill.live { color: var(--good); border-color: color-mix(in srgb, var(--good) 45%, transparent); }
+.pill.live::before { background: var(--good); }
+.pill.sim::before { background: var(--accent); }
+
+.alert { display: flex; gap: 10px; align-items: center; padding: 10px 12px; border-radius: 10px; background: color-mix(in srgb, var(--crit) 12%, var(--surface)); border: 1px solid color-mix(in srgb, var(--crit) 45%, transparent); color: var(--crit); font-weight: 500; }
+.alert svg { flex: none; }
+
+.kpis { display: grid; grid-template-columns: 1fr 1fr; border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); }
+.kpi { padding: 10px 0 12px; display: grid; gap: 2px; min-width: 0; }
+.kpi:nth-child(odd) { padding-right: 12px; border-right: 1px solid var(--line); }
+.kpi:nth-child(even) { padding-left: 14px; }
+.kpi:nth-child(-n+2) { border-bottom: 1px solid var(--line); }
+.kpi span { font-size: 12px; color: var(--muted); letter-spacing: .01em; }
+.kpi b { font: 600 24px/1.15 var(--f-mono); font-variant-numeric: tabular-nums; letter-spacing: -.02em; }
+.kpi b small { font-size: 13px; font-weight: 400; color: var(--muted); margin-left: 3px; letter-spacing: 0; }
+.kpi em { font-style: normal; font-size: 12px; color: var(--muted); }
+
+section { display: grid; gap: 10px; min-width: 0; }
+.sec-h { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }
+h2 { font-size: 15px; font-weight: 600; }
+.sec-h .mono { font-size: 12px; color: var(--muted); }
+
+.spark-wrap { position: relative; }
+#spark { width: 100%; height: 88px; display: block; }
+.spark-x { display: flex; justify-content: space-between; font-size: 11.5px; color: var(--muted); margin-top: 2px; }
+.stip { position: absolute; top: -6px; transform: translate(-50%, -100%); padding: 4px 8px; border-radius: 6px; background: var(--ink); color: var(--surface); font-size: 12px; white-space: nowrap; pointer-events: none; }
+.bd { list-style: none; margin: 4px 0 0; padding: 0; display: grid; gap: 6px; }
+.bd li { display: grid; grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr) 4.4em; gap: 10px; align-items: center; font-size: 13px; }
+.bd .n { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.bd .bar { height: 6px; border-radius: 3px; background: var(--sunk); overflow: hidden; }
+.bd .bar i { display: block; height: 100%; border-radius: 3px; background: var(--accent); }
+.bd .v { text-align: right; font-size: 12.5px; }
+
+.scenes { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+.scene { cursor: pointer; text-align: left; padding: 10px 11px; border-radius: 10px; border: 1px solid var(--line); background: var(--surface); display: grid; gap: 2px; }
+.scene b { font-family: var(--f-display); font-weight: 600; font-size: 14px; }
+.scene small { font-size: 11.5px; color: var(--muted); line-height: 1.35; }
+.scene:hover { border-color: var(--accent); }
+
+.tabs { display: flex; gap: 6px; flex-wrap: wrap; }
+.tab { cursor: pointer; padding: 4px 11px; border-radius: 999px; border: 1px solid var(--line); background: transparent; font-size: 13px; color: var(--muted); }
+.tab[aria-selected="true"] { background: var(--ink); border-color: var(--ink); color: var(--surface); }
+.devs { display: grid; border-top: 1px solid var(--line); }
+.dev { border-bottom: 1px solid var(--line); padding: 10px 2px; display: grid; gap: 8px; }
+.dev.sel { background: linear-gradient(90deg, var(--accent-soft), transparent 70%); }
+.dev-h { display: grid; grid-template-columns: 10px minmax(0,1fr) auto; gap: 10px; align-items: center; cursor: pointer; }
+.dot { width: 9px; height: 9px; border-radius: 50%; background: var(--line); }
+.dot.on { background: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
+.dot.cool { background: var(--cool); box-shadow: 0 0 0 3px color-mix(in srgb, var(--cool) 20%, transparent); }
+.dot.good { background: var(--good); }
+.dot.warn { background: var(--warn); }
+.dot.crit { background: var(--crit); }
+.dev-name { min-width: 0; }
+.dev-name b { font-weight: 500; }
+.dev-name small { display: block; color: var(--muted); font-size: 12px; line-height: 1.3; }
+.dev-r { text-align: right; font-size: 12.5px; }
+.dev-r .w { display: block; color: var(--muted); font-size: 11.5px; }
+
+.ctl { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 14px; padding-left: 20px; }
+.ov .ctl { padding-left: 0; }
+.sw { cursor: pointer; position: relative; width: 42px; height: 24px; flex: none; border-radius: 12px; border: 1px solid var(--line); background: var(--sunk); transition: background .15s; }
+.sw::after { content: ""; position: absolute; top: 2px; left: 2px; width: 18px; height: 18px; border-radius: 50%; background: var(--surface); box-shadow: 0 1px 2px rgba(0,0,0,.25); transition: transform .15s; }
+.sw[aria-checked="true"] { background: var(--accent); border-color: var(--accent); }
+.sw[aria-checked="true"]::after { transform: translateX(18px); }
+.rng { display: flex; align-items: center; gap: 8px; flex: 1 1 160px; min-width: 0; font-size: 12.5px; color: var(--muted); }
+.rng input { flex: 1; min-width: 0; accent-color: var(--accent); }
+.rng output { min-width: 3.2em; text-align: right; color: var(--ink); }
+.step { display: inline-flex; align-items: center; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; }
+.step button { cursor: pointer; width: 32px; height: 28px; border: 0; background: var(--surface); font-size: 16px; }
+.step button:hover { background: var(--sunk); }
+.step output { min-width: 4.4em; text-align: center; font-size: 13px; border-inline: 1px solid var(--line); line-height: 28px; }
+.seg { display: inline-flex; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; }
+.seg button { cursor: pointer; border: 0; background: var(--surface); padding: 4px 12px; font-size: 13px; }
+.seg button + button { border-left: 1px solid var(--line); }
+.seg button[aria-pressed="true"] { background: var(--ink); color: var(--surface); }
+.btn { cursor: pointer; padding: 6px 12px; border-radius: 8px; border: 1px solid var(--line); background: var(--surface); font-size: 13px; }
+.btn:hover { border-color: var(--muted); }
+.btn.primary { background: var(--ink); color: var(--surface); border-color: var(--ink); }
+.btn.danger { color: var(--crit); border-color: color-mix(in srgb, var(--crit) 40%, transparent); }
+.note { font-size: 12.5px; color: var(--muted); }
+
+.rules { display: grid; gap: 8px; }
+.rule { display: grid; grid-template-columns: auto 1fr; gap: 10px; align-items: start; font-size: 13.5px; }
+.rule input { margin-top: 4px; accent-color: var(--accent); width: 16px; height: 16px; }
+.rule small { display: block; color: var(--muted); font-size: 12px; }
+
+details.mq { border: 1px solid var(--line); border-radius: 12px; background: var(--surface); }
+details.mq summary { cursor: pointer; padding: 12px 14px; font-family: var(--f-display); font-weight: 600; font-size: 15px; display: flex; justify-content: space-between; gap: 8px; }
+details.mq summary span { font: 400 12px var(--f-body); color: var(--muted); }
+.mq-body { padding: 0 14px 14px; display: grid; gap: 10px; }
+.fld { display: grid; gap: 4px; font-size: 12.5px; color: var(--muted); }
+.fld input[type="text"], .fld input[type="password"], .fld input[type="url"] { font: 13px var(--f-mono); color: var(--ink); padding: 7px 9px; border-radius: 8px; border: 1px solid var(--line); background: var(--bg); width: 100%; min-width: 0; }
+.row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.chk { display: flex; gap: 8px; align-items: center; font-size: 13px; }
+.chk input { accent-color: var(--accent); }
+.mq-status { font-size: 12.5px; color: var(--muted); }
+.mq-status.crit { color: var(--crit); }
+.mq-status.good { color: var(--good); }
+.topics { margin: 0; padding: 10px; border-radius: 8px; background: var(--bg); border: 1px solid var(--line); font: 11.5px/1.6 var(--f-mono); overflow-x: auto; white-space: pre; color: var(--muted); }
+.topics b { color: var(--ink); font-weight: 500; }
+
+.log { list-style: none; margin: 0; padding: 0; display: grid; font-size: 12.5px; max-height: 260px; overflow-y: auto; border-top: 1px solid var(--line); }
+.log li { display: grid; grid-template-columns: 4.8em 5.6em minmax(0,1fr); gap: 8px; padding: 6px 0; border-bottom: 1px solid var(--line); }
+.log time { color: var(--muted); font-size: 11.5px; padding-top: 1px; }
+.log .src { color: var(--muted); }
+.log .txt { min-width: 0; overflow-wrap: anywhere; }
+.log li.crit .txt { color: var(--crit); }
+.log li.warn .txt { color: var(--warn); }
+
+@media (max-width: 1100px) { :root { --panel-w: 360px; } .scenes { grid-template-columns: 1fr; } }
+@media (max-width: 820px) {
+  html, body { height: auto; }
+  .app { grid-template-columns: 1fr; grid-template-rows: auto auto; height: auto; }
+  .stage { height: 62svh; min-height: 380px; }
+  .panel { border-left: 0; border-top: 1px solid var(--line); overflow: visible; }
+  .scenes { grid-template-columns: repeat(3, 1fr); }
+  .hud-tl { right: 16px; top: 60px; }
+  .hint { display: none; }
+  .rlabel { padding: 2px 6px 3px; font-size: 11px; }
+  .rlabel b { font-size: 11.5px; }
+  .rlabel .mono { font-size: 10.5px; }
+  .hud-tr { left: max(16px, env(safe-area-inset-left, 0px)); right: auto; }
+}
+@media (max-width: 420px) { .scenes { grid-template-columns: 1fr; } .row2 { grid-template-columns: 1fr; } }
+@media (prefers-reduced-motion: reduce) { .sw, .sw::after { transition: none; } }
+</style>
+</head>
+<body>
+<div class="app">
+  <div class="stage" id="stage">
+    <div class="labels" id="labels"></div>
+    <div class="htip" id="htip" hidden></div>
+    <div class="hud hud-tl">
+      <span class="chip">ภายนอก <b class="mono" id="outdoor">33.5°C · 70%</b></span>
+      <span class="chip hint">ลากเพื่อหมุน · คลิกอุปกรณ์เพื่อสั่งงาน</span>
+    </div>
+    <div class="hud hud-tr">
+      <button class="tbtn" id="wallBtn" type="button" aria-pressed="false">ผนังโปร่ง</button>
+      <button class="tbtn" id="viewBtn" type="button">มุมมองเริ่มต้น</button>
+    </div>
+    <div class="ov" id="ov" hidden></div>
+  </div>
+
+  <aside class="panel">
+    <header class="ph">
+      <div>
+        <h1>บ้านอัจฉริยะ 3D</h1>
+        <p>บ้านเดี่ยว 1 ชั้น · 5 ห้อง · อุปกรณ์ 15 จุด</p>
+      </div>
+      <span class="pill sim" id="connPill">โหมดจำลอง</span>
+    </header>
+
+    <div class="alert" id="alert" role="alert" hidden>
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M12 3 2 21h20L12 3z"/><path d="M12 10v5M12 18v.01"/></svg>
+      <span id="alertText"></span>
+    </div>
+
+    <div class="kpis">
+      <div class="kpi"><span>กำลังไฟฟ้าขณะนี้</span><b id="kW">0<small>W</small></b><em id="kWnote">&nbsp;</em></div>
+      <div class="kpi"><span>พลังงานวันนี้</span><b id="kE">0<small>kWh</small></b><em id="kCost">&nbsp;</em></div>
+      <div class="kpi"><span>อุณหภูมิในบ้านเฉลี่ย</span><b id="kT">0<small>°C</small></b><em id="kH">&nbsp;</em></div>
+      <div class="kpi"><span>อุปกรณ์ที่ทำงาน</span><b id="kN">0</b><em id="kSec">&nbsp;</em></div>
+    </div>
+
+    <section>
+      <div class="sec-h"><h2>กำลังไฟฟ้า 2 นาทีล่าสุด</h2><span class="mono" id="peak"></span></div>
+      <div class="spark-wrap">
+        <canvas id="spark" aria-label="กราฟกำลังไฟฟ้าย้อนหลัง 2 นาที"></canvas>
+        <div class="stip mono" id="stip" hidden></div>
+      </div>
+      <div class="spark-x"><span>2 นาทีก่อน</span><span>ตอนนี้</span></div>
+      <ul class="bd" id="breakdown" aria-label="อุปกรณ์ที่ใช้ไฟมากที่สุด"></ul>
+    </section>
+
+    <section>
+      <h2>ฉาก</h2>
+      <div class="scenes" id="scenes"></div>
+    </section>
+
+    <section>
+      <div class="sec-h"><h2>อุปกรณ์</h2><span class="mono" id="devCount"></span></div>
+      <div class="tabs" id="tabs" role="tablist" aria-label="เลือกห้อง"></div>
+      <div class="devs" id="devs"></div>
+    </section>
+
+    <section>
+      <h2>ระบบอัตโนมัติ</h2>
+      <div class="rules" id="rules"></div>
+      <div><button class="btn danger" id="leakBtn" type="button">จำลองแก๊สรั่วในครัว</button></div>
+    </section>
+
+    <details class="mq" id="mqBox">
+      <summary>การเชื่อมต่อ MQTT <span id="mqSum">ยังไม่เชื่อมต่อ</span></summary>
+      <form class="mq-body" id="mqForm" autocomplete="off">
+        <label class="fld">Broker (WebSocket)
+          <input type="text" id="mqUrl" spellcheck="false" value="wss://broker.emqx.io:8084/mqtt">
+        </label>
+        <label class="fld">Topic หลัก
+          <input type="text" id="mqBase" spellcheck="false">
+        </label>
+        <div class="row2">
+          <label class="fld">ชื่อผู้ใช้<input type="text" id="mqUser" spellcheck="false"></label>
+          <label class="fld">รหัสผ่าน<input type="password" id="mqPass"></label>
+        </div>
+        <label class="chk"><input type="checkbox" id="mqSim" checked> ให้เบราว์เซอร์จำลองอุปกรณ์และเซนเซอร์ (ปิดเมื่อใช้อุปกรณ์จริง)</label>
+        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+          <button class="btn primary" id="mqBtn" type="submit">เชื่อมต่อ</button>
+          <span class="mq-status" id="mqStatus">ใช้โหมดจำลองในเบราว์เซอร์อยู่</span>
+        </div>
+        <pre class="topics" id="topics"></pre>
+      </form>
+    </details>
+
+    <section>
+      <h2>บันทึกเหตุการณ์</h2>
+      <ol class="log" id="log"></ol>
+    </section>
+  </aside>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+<script src="https://unpkg.com/mqtt@4.3.7/dist/mqtt.min.js"></script>
+<script>
+(() => {
+'use strict';
+
+/* ---------- helpers ---------- */
+const $ = (s, r = document) => r.querySelector(s);
+const el = (tag, cls, html) => { const e = document.createElement(tag); if (cls) e.className = cls; if (html != null) e.innerHTML = html; return e; };
+const css = n => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
+const clamp = (v, a, b) => Math.min(b, Math.max(a, v));
+const nf0 = new Intl.NumberFormat('th-TH', { maximumFractionDigits: 0 });
+const nf1 = new Intl.NumberFormat('th-TH', { minimumFractionDigits: 1, maximumFractionDigits: 1 });
+const nf2 = new Intl.NumberFormat('th-TH', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+const store = {
+  get(k, d) { try { const v = localStorage.getItem('house3d:' + k); return v == null ? d : JSON.parse(v); } catch (e) { return d; } },
+  set(k, v) { try { localStorage.setItem('house3d:' + k, JSON.stringify(v)); } catch (e) {} }
+};
+const hhmmss = d => d.toLocaleTimeString('th-TH', { hour12: false });
+const isDark = () => { const t = document.documentElement.dataset.theme; return t ? t === 'dark' : matchMedia('(prefers-color-scheme: dark)').matches; };
+
+/* ---------- model ---------- */
+const ROOMS = {
+  living:  { name: 'ห้องนั่งเล่น', x: [-6, 1],    z: [-0.5, 4] },
+  kitchen: { name: 'ห้องครัว',     x: [1, 6],     z: [-0.5, 4] },
+  bedroom: { name: 'ห้องนอน',      x: [-6, -0.5], z: [-4, -0.5] },
+  bath:    { name: 'ห้องน้ำ',       x: [-0.5, 2],  z: [-4, -0.5] },
+  garage:  { name: 'โรงรถ',        x: [2, 6],     z: [-4, -0.5] }
+};
+const OUTDOOR = { temp: 33.5, hum: 70 };
+const env = {
+  living:  { temp: 27.6, hum: 61 },
+  kitchen: { temp: 29.4, hum: 66, gas: 118 },
+  bedroom: { temp: 30.2, hum: 65 },
+  bath:    { temp: 29.0, hum: 74 },
+  garage:  { temp: 32.4, hum: 64 }
+};
+const realSensor = new Set();
+let gasLeak = 0, gasAlarm = false, autoHood = false;
+const GAS_ALARM = 400, GAS_CLEAR = 250, POWER_CAP = 4500, BASE_LOAD = 145, TARIFF = 4.18;
+
+const DEVICES = [
+  { id: 'living/light',   type: 'light',   name: 'ไฟเพดาน',          pos: [-2.6, 2.3, 1.8],    state: { on: true, level: 80 } },
+  { id: 'living/ac',      type: 'ac',      name: 'เครื่องปรับอากาศ',   pos: [-3.2, 2.0, -0.36],  face: [0, 0, 1], state: { on: true, setpoint: 25 } },
+  { id: 'living/tv',      type: 'tv',      name: 'ทีวี',              pos: [-5.9, 1.3, 1.8],    state: { on: false } },
+  { id: 'living/curtain', type: 'curtain', name: 'ผ้าม่านหน้าต่าง',    pos: [-0.5, 1.5, 3.84],   state: { open: 70 } },
+  { id: 'living/door',    type: 'lock',    name: 'ประตูหน้า',          pos: [-3.5, 0, 4],        state: { locked: true } },
+  { id: 'kitchen/light',  type: 'light',   name: 'ไฟเพดาน',          pos: [3.4, 2.3, 1.6],     state: { on: false, level: 100 } },
+  { id: 'kitchen/hood',   type: 'fan',     name: 'เครื่องดูดควัน',     pos: [5.7, 1.95, 2.0],    variant: 'hood', state: { speed: 0 } },
+  { id: 'kitchen/gas',    type: 'gas',     name: 'เซนเซอร์แก๊ส LPG',  pos: [2.2, 2.42, 0.4],    state: {} },
+  { id: 'bedroom/light',  type: 'light',   name: 'ไฟเพดาน',          pos: [-4.6, 2.3, -1.4],   state: { on: false, level: 40 } },
+  { id: 'bedroom/ac',     type: 'ac',      name: 'เครื่องปรับอากาศ',   pos: [-5.86, 2.0, -2.0],  face: [1, 0, 0], state: { on: false, setpoint: 26 } },
+  { id: 'bedroom/fan',    type: 'fan',     name: 'พัดลมเพดาน',        pos: [-2.4, 2.34, -2.3],  state: { speed: 1 } },
+  { id: 'bath/light',     type: 'light',   name: 'ไฟเพดาน',          pos: [0.75, 2.3, -2.2],   state: { on: false, level: 100 } },
+  { id: 'bath/heater',    type: 'heater',  name: 'เครื่องทำน้ำอุ่น',   pos: [1.86, 1.6, -1.5],   state: { on: false } },
+  { id: 'garage/light',   type: 'light',   name: 'ไฟเพดาน',          pos: [4.0, 2.3, -2.2],    state: { on: false, level: 100 } },
+  { id: 'garage/door',    type: 'garage',  name: 'ประตูโรงรถ',        pos: [6, 0, -2.25],       state: { open: 0 } }
+];
+const dev = {};
+DEVICES.forEach(d => { d.room = d.id.split('/')[0]; d.uis = []; dev[d.id] = d; });
+
+function powerOf(d) {
+  const s = d.state;
+  switch (d.type) {
+    case 'light': return s.on ? 15 * s.level / 100 : 0.3;
+    case 'ac': { if (!s.on) return 3; const dT = Math.max(0, env[d.room].temp - s.setpoint); return Math.min(1500, 380 + 260 * dT); }
+    case 'tv': return s.on ? 110 : 1;
+    case 'fan': return s.speed * (d.variant === 'hood' ? 45 : 18);
+    case 'heater': return s.on ? 3500 : 0;
+    case 'curtain': return 1.5;
+    case 'lock': return 2;
+    case 'garage': return 4;
+    case 'gas': return 1;
+  }
+  return 0;
+}
+const totalPower = () => BASE_LOAD + DEVICES.reduce((a, d) => a + powerOf(d), 0);
+const isActive = d => ({ light: d.state.on, ac: d.state.on, tv: d.state.on, heater: d.state.on, fan: d.state.speed > 0 })[d.type] || false;
+const gasLevel = () => env.kitchen.gas >= GAS_ALARM ? 'crit' : env.kitchen.gas >= GAS_CLEAR ? 'warn' : 'good';
+
+function summary(d) {
+  const s = d.state;
+  switch (d.type) {
+    case 'light': return s.on ? `เปิด · ${s.level}%` : 'ปิด';
+    case 'ac': return s.on ? `ทำความเย็น · ตั้ง ${s.setpoint}°C` : 'ปิด';
+    case 'tv': return s.on ? 'เปิด' : 'ปิด';
+    case 'curtain': return s.open === 0 ? 'ปิดสนิท' : `เปิด ${s.open}%`;
+    case 'lock': {
+      if (s.locked) return 'ล็อกอยู่';
+      const left = d.autoLockAt ? Math.max(0, Math.ceil((d.autoLockAt - Date.now()) / 1000)) : 0;
+      return left ? `ปลดล็อก · ล็อกเองใน ${left} วิ` : 'ปลดล็อก';
+    }
+    case 'fan': return s.speed ? `ระดับ ${s.speed}` : 'ปิด';
+    case 'heater': return s.on ? 'กำลังทำน้ำอุ่น' : 'ปิด';
+    case 'garage': return s.open === 0 ? 'ปิด' : s.open === 100 ? 'เปิดสุด' : `เปิด ${s.open}%`;
+    case 'gas': return `${nf0.format(env.kitchen.gas)} ppm · ${({ good: 'ปกติ', warn: 'สูงกว่าปกติ', crit: 'อันตราย' })[gasLevel()]}`;
+  }
+  return '';
+}
+function dotClass(d) {
+  if (d.type === 'gas') return gasLevel();
+  if (d.type === 'lock') return d.state.locked ? 'good' : 'warn';
+  if (d.type === 'garage') return d.state.open > 0 ? 'warn' : '';
+  if (d.type === 'ac') return d.state.on ? 'cool' : '';
+  if (d.type === 'curtain') return d.state.open > 0 ? 'on' : '';
+  return isActive(d) ? 'on' : '';
+}
+
+/* ---------- state changes ---------- */
+const LIMITS = { level: [0, 100], setpoint: [18, 30], open: [0, 100], speed: [0, 3] };
+function sanitize(d, patch) {
+  const out = {};
+  for (const k of Object.keys(patch || {})) {
+    if (!(k in d.state)) continue;
+    let v = patch[k];
+    if (typeof d.state[k] === 'boolean') v = v === true || v === 'true' || v === 1 || v === 'ON' || v === 'on';
+    else { v = Number(v); if (!isFinite(v)) continue; if (LIMITS[k]) v = clamp(Math.round(v), LIMITS[k][0], LIMITS[k][1]); }
+    out[k] = v;
+  }
+  return out;
+}
+function applyState(id, patch, src, opts = {}) {
+  const d = dev[id]; if (!d) return;
+  const p = sanitize(d, patch);
+  const changed = Object.keys(p).some(k => d.state[k] !== p[k]);
+  if (!changed && !opts.force) return;
+  const wasLocked = d.state.locked;
+  Object.assign(d.state, p);
+  if (d.type === 'lock') {
+    if (!d.state.locked && wasLocked && rules.lock) d.autoLockAt = Date.now() + 30000;
+    if (d.state.locked) d.autoLockAt = 0;
+  }
+  if (d.type === 'fan' && d.variant === 'hood' && src !== 'อัตโนมัติ') autoHood = false;
+  refreshDevice(d);
+  if (!opts.quiet) log(src, `${ROOMS[d.room].name} · ${d.name}: ${summary(d)}`);
+  if (opts.publish !== false) mqPublishState(d);
+  refreshSummary();
+}
+const localMode = () => !(mq.connected && !mq.sim);
+function command(id, patch, src = 'ผู้ใช้', opts = {}) {
+  if (localMode()) return applyState(id, patch, src, opts);
+  const d = dev[id];
+  mq.client.publish(`${mq.base}/${id}/set`, JSON.stringify(sanitize(d, patch)), { qos: 1 });
+  log(src, `ส่งคำสั่ง → ${mq.base}/${id}/set ${JSON.stringify(sanitize(d, patch))}`);
+}
+
+/* ---------- 3D scene ---------- */
+const stage = $('#stage');
+let renderer;
+try { renderer = window.THREE && THREE.OrbitControls ? new THREE.WebGLRenderer({ antialias: true }) : null; }
+catch (e) { renderer = null; }
+if (!renderer) {
+  stage.append(el('div', 'nogl', 'เบราว์เซอร์นี้แสดงผล 3D (WebGL) ไม่ได้ แผงควบคุมด้านข้างยังใช้งานได้ตามปกติ'));
+}
+const scene = renderer ? new THREE.Scene() : null;
+const camera = renderer ? new THREE.PerspectiveCamera(38, 1, 0.1, 200) : null;
+const HOME_TARGET = [0, 0.4, 0];
+// pull the camera back on tall/narrow stages so the whole house fits
+function homeCam() {
+  const r = stage.getBoundingClientRect(), a = r.width / Math.max(1, r.height);
+  const k = clamp(0.98 / a, 1, 1.8);
+  return [10.5 * k, 13 * k, 15.5 * k];
+}
+let controls, hemi, sun;
+const M = {};
+const pickables = [];
+const floors = {};
+const flows = [];
+const anims = [];          // per-frame device visuals
+let wallGroup;
+
+function mat(token, extra = {}) { const m = new THREE.MeshStandardMaterial(Object.assign({ roughness: 0.85, metalness: 0 }, extra)); m.userData.token = token; return m; }
+function box(w, h, d, material, x, y, z, parent) { const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), material); m.position.set(x, y, z); (parent || scene).add(m); return m; }
+function hit(group, w, h, d, x = 0, y = 0, z = 0) {
+  const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), new THREE.MeshBasicMaterial({ visible: false }));
+  m.position.set(x, y, z); group.add(m); pickables.push(m); return m;
+}
+
+class Flow {
+  constructor(parent, origin, dir, token, n = 14, spread = 0.35, len = 1.5, size = 0.035) {
+    this.token = token; this.active = false; this.rate = 1; this.pts = [];
+    this.origin = new THREE.Vector3(...origin); this.dir = new THREE.Vector3(...dir).normalize(); this.len = len; this.spread = spread;
+    const geo = new THREE.SphereGeometry(size, 8, 6);
+    for (let i = 0; i < n; i++) {
+      const m = new THREE.Mesh(geo, new THREE.MeshBasicMaterial({ transparent: true, opacity: 0, depthWrite: false }));
+      m.visible = false; parent.add(m);
+      this.pts.push({ m, t: Math.random(), off: this.rand() });
+    }
+    flows.push(this);
+  }
+  rand() { const s = this.spread; return new THREE.Vector3((Math.random() - .5) * s, (Math.random() - .5) * s, (Math.random() - .5) * s); }
+  setColor(c) { this.pts.forEach(p => p.m.material.color.set(c)); }
+  tick(dt) {
+    for (const p of this.pts) {
+      p.t += dt * 0.55 * this.rate;
+      if (p.t > 1) { p.t -= 1; p.off = this.rand(); }
+      p.m.position.copy(this.origin).addScaledVector(this.dir, p.t * this.len).addScaledVector(p.off, p.t);
+      const target = this.active ? Math.sin(Math.PI * p.t) * 0.6 : 0;
+      const o = p.m.material.opacity + (target - p.m.material.opacity) * Math.min(1, dt * 5);
+      p.m.material.opacity = o; p.m.visible = o > 0.01;
+    }
+  }
+}
+const ease = (cur, target, dt, k = 5) => cur + (target - cur) * Math.min(1, dt * k);
+
+function buildHouse() {
+  M.ground = mat('--ground'); M.wall = mat('--wall'); M.furn = mat('--furn'); M.path = mat('--path'); M.tree = mat('--tree');
+  M.white = new THREE.MeshStandardMaterial({ color: 0xf4f5f2, roughness: 0.5 });
+  M.dark = new THREE.MeshStandardMaterial({ color: 0x2a3238, roughness: 0.6 });
+  M.fabric = new THREE.MeshStandardMaterial({ color: 0xb98a5e, roughness: 0.95 });
+  M.car = new THREE.MeshStandardMaterial({ color: 0x3f6f8c, roughness: 0.4, metalness: 0.2 });
+  M.glass = mat('--glass', { transparent: true, opacity: 0.28, roughness: 0.1, depthWrite: false });
+  M.wood = new THREE.MeshStandardMaterial({ color: 0x8a6544, roughness: 0.8 });
+
+  const g = new THREE.Mesh(new THREE.PlaneGeometry(70, 70), M.ground);
+  g.rotation.x = -Math.PI / 2; g.position.y = -0.02; scene.add(g);
+  box(5, 0.02, 2.3, M.path, 8.5, 0, -2.25);
+  box(1.0, 0.02, 3.5, M.path, -3, 0, 5.8);
+  [[-8.5, 5.5, 1.1], [9, 3.5, 0.9], [-8, -5, 1.3]].forEach(([x, z, s]) => {
+    box(0.18 * s, 1.2 * s, 0.18 * s, M.wood, x, 0.6 * s, z);
+    const c = new THREE.Mesh(new THREE.IcosahedronGeometry(0.9 * s, 0), M.tree); c.position.set(x, 1.6 * s, z); scene.add(c);
+  });
+
+  for (const [key, r] of Object.entries(ROOMS)) {
+    const fm = mat('--floor'); fm.emissive = new THREE.Color(0);
+    const w = r.x[1] - r.x[0], d = r.z[1] - r.z[0];
+    floors[key] = box(w - 0.02, 0.06, d - 0.02, fm, (r.x[0] + r.x[1]) / 2, 0.03, (r.z[0] + r.z[1]) / 2);
+    floors[key].userData.room = key;
+    pickables.push(floors[key]);
+  }
+
+  wallGroup = new THREE.Group(); scene.add(wallGroup);
+  const H = 2.5, T = 0.14;
+  const glass = (axis, c, a, b, y0, y1) => {
+    const m = axis === 'x' ? box(b - a, y1 - y0, 0.02, M.glass, (a + b) / 2, (y0 + y1) / 2, c, wallGroup) : box(0.02, y1 - y0, b - a, M.glass, c, (y0 + y1) / 2, (a + b) / 2, wallGroup);
+    m.renderOrder = 2;
+  };
+  function wall(axis, c, a, b, gaps = []) {
+    const seg = (s, e, y0, y1) => {
+      if (e - s < 0.01 || y1 - y0 < 0.01) return;
+      if (axis === 'x') box(e - s, y1 - y0, T, M.wall, (s + e) / 2, (y0 + y1) / 2, c, wallGroup);
+      else box(T, y1 - y0, e - s, M.wall, c, (y0 + y1) / 2, (s + e) / 2, wallGroup);
+    };
+    let cur = a;
+    gaps.slice().sort((p, q) => p[0] - q[0]).forEach(([g0, g1, y0, y1, isWin]) => {
+      seg(cur, g0, 0, H); seg(g0, g1, 0, y0); seg(g0, g1, y1, H); cur = g1;
+      if (isWin) glass(axis, c, g0, g1, y0, y1);
+    });
+    seg(cur, b, 0, H);
+  }
+  wall('x', 4, -6.07, 6.07, [[-3.5, -2.5, 0, 2.1], [-1.6, 0.6, 0.8, 2.2, true], [2.6, 4.4, 1.0, 2.1, true]]);
+  wall('x', -4, -6.07, 6.07, [[-4.4, -2.4, 0.9, 2.1, true]]);
+  wall('z', -6, -4, 4, [[0.8, 2.8, 0.9, 2.1, true]]);
+  wall('z', 6, -4, 4, [[-3.4, -1.1, 0, 2.2], [0.6, 1.4, 0.9, 2.1, true]]);
+  wall('x', -0.5, -5.93, 5.93, [[-1.6, -0.8, 0, 2.1], [0.1, 0.9, 0, 2.1], [4.6, 5.4, 0, 2.1]]);
+  wall('z', 1, -0.43, 3.93, [[0.3, 2.8, 0, 2.5]]);
+  wall('z', -0.5, -3.93, -0.57);
+  wall('z', 2, -3.93, -0.57);
+
+  // furniture
+  box(0.9, 0.42, 2.2, M.furn, -1.7, 0.27, 1.8); box(0.22, 0.85, 2.2, M.furn, -1.21, 0.48, 1.8);
+  box(0.6, 0.36, 1.0, M.wood, -3.6, 0.24, 1.8);
+  box(0.4, 0.5, 1.8, M.wood, -5.7, 0.31, 1.8);
+  box(1.8, 0.45, 2.1, M.furn, -4.6, 0.28, -2.9); box(1.8, 0.95, 0.1, M.wood, -4.6, 0.52, -3.88);
+  box(1.6, 0.12, 0.45, M.white, -4.6, 0.56, -3.55);
+  box(3.2, 0.9, 0.6, M.furn, 3.0, 0.48, 3.6); box(0.6, 0.9, 2.0, M.furn, 5.62, 0.48, 2.0);
+  box(1.4, 0.9, 0.8, M.wood, 3.2, 0.48, 1.3);
+  box(0.75, 0.55, 1.6, M.white, 0.1, 0.31, -3.1);
+  box(3.0, 0.55, 1.5, M.car, 3.9, 0.55, -2.25); box(1.6, 0.48, 1.32, M.car, 3.7, 1.06, -2.25);
+  [[2.9, -3.0], [4.9, -3.0], [2.9, -1.5], [4.9, -1.5]].forEach(([x, z]) => {
+    const w = new THREE.Mesh(new THREE.CylinderGeometry(0.3, 0.3, 0.18, 16), M.dark); w.rotation.x = Math.PI / 2; w.position.set(x, 0.33, z); scene.add(w);
+  });
+}
+
+function deviceGroup(d) {
+  const g = new THREE.Group(); g.position.set(...d.pos); g.userData.id = d.id; scene.add(g); d.obj = g;
+  if (d.face) g.rotation.y = Math.atan2(d.face[0], d.face[2]);
+  return g;
+}
+const ledMat = () => new THREE.MeshBasicMaterial({ color: 0x555555 });
+
+const BUILDERS = {
+  light(d) {
+    const g = deviceGroup(d);
+    const m = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.4, emissive: new THREE.Color(0) });
+    g.add(new THREE.Mesh(new THREE.SphereGeometry(0.13, 20, 14), m));
+    box(0.02, 0.2, 0.02, M.dark, 0, 0.14, 0, g);
+    const pl = new THREE.PointLight(0xffc27a, 0, 7.5, 2); pl.position.y = -0.15; g.add(pl);
+    hit(g, 0.5, 0.5, 0.5);
+    let k = 0;
+    anims.push(dt => { const t = d.state.on ? d.state.level / 100 : 0; k = ease(k, t, dt, 8); pl.intensity = k * (isDarkNow ? 1.9 : 1.3); m.emissive.setRGB(1 * k, 0.72 * k, 0.38 * k); });
+  },
+  ac(d) {
+    const g = deviceGroup(d);
+    box(0.95, 0.3, 0.24, M.white, 0, 0, 0, g);
+    box(0.8, 0.03, 0.02, M.dark, 0, -0.11, 0.125, g);
+    const led = ledMat(); const l = new THREE.Mesh(new THREE.SphereGeometry(0.022, 8, 6), led); l.position.set(0.38, -0.04, 0.125); g.add(l);
+    const f = new Flow(g, [0, -0.15, 0.15], [0, -0.7, 1], '--cool', 16, 0.5, 1.6);
+    hit(g, 1.1, 0.5, 0.5);
+    d.refresh3d = () => { f.active = d.state.on; led.color.set(d.state.on ? css('--cool') : '#555555'); };
+  },
+  tv(d) {
+    const g = deviceGroup(d); g.rotation.y = Math.PI / 2;
+    box(1.5, 0.86, 0.06, M.dark, 0, 0, 0, g);
+    const sm = new THREE.MeshBasicMaterial({ color: 0x111417 });
+    box(1.38, 0.76, 0.01, sm, 0, 0, 0.035, g);
+    hit(g, 1.6, 1, 0.3);
+    let t = 0;
+    anims.push(dt => { t += dt; if (d.state.on) sm.color.setHSL((0.55 + Math.sin(t * 0.35) * 0.12 + 1) % 1, 0.55, 0.5); else sm.color.setHex(0x111417); });
+  },
+  curtain(d) {
+    const g = deviceGroup(d);
+    const mk = (x, dir) => { const p = new THREE.Group(); p.position.x = x; g.add(p); box(1.1, 1.5, 0.04, M.fabric, dir * 0.55, 0, 0, p); return p; };
+    const L = mk(-1.1, 1), R = mk(1.1, -1);
+    box(2.4, 0.04, 0.04, M.dark, 0, 0.78, 0, g);
+    hit(g, 2.3, 1.6, 0.3);
+    let o = d.state.open;
+    anims.push(dt => { o = ease(o, d.state.open, dt, 3); const s = 1 - 0.85 * o / 100; L.scale.x = s; R.scale.x = s; });
+  },
+  lock(d) {
+    const g = deviceGroup(d);
+    const pivot = new THREE.Group(); g.add(pivot);
+    box(0.98, 2.08, 0.05, M.wood, 0.49, 1.04, 0, pivot);
+    const led = ledMat();
+    [-0.04, 0.04].forEach(z => box(0.06, 0.12, 0.02, led, 0.86, 1.05, z, pivot));
+    hit(g, 1.0, 2.1, 0.4, 0.5, 1.05, 0);
+    let a = 0;
+    anims.push(dt => { a = ease(a, d.state.locked ? 0 : 0.5, dt, 4); pivot.rotation.y = a; });
+    d.refresh3d = () => led.color.set(d.state.locked ? css('--good') : css('--warn'));
+  },
+  fan(d) {
+    const g = deviceGroup(d);
+    if (d.variant === 'hood') {
+      g.rotation.y = -Math.PI / 2;
+      box(0.9, 0.3, 0.55, M.white, 0, 0, 0.12, g); box(0.3, 0.5, 0.25, M.white, 0, 0.38, 0, g);
+      const f = new Flow(g, [0, -0.5, 0.2], [0, 1, 0], '--muted', 14, 0.5, 0.9, 0.04);
+      hit(g, 1, 0.9, 0.7, 0, 0.1, 0.1);
+      d.refresh3d = () => { f.active = d.state.speed > 0; f.rate = 0.6 + d.state.speed * 0.5; };
+      return;
+    }
+    box(0.03, 0.16, 0.03, M.dark, 0, 0.08, 0, g);
+    const rotor = new THREE.Group(); g.add(rotor);
+    const hub = new THREE.Mesh(new THREE.CylinderGeometry(0.1, 0.1, 0.08, 16), M.wood); rotor.add(hub);
+    for (let i = 0; i < 4; i++) { const b = new THREE.Group(); b.rotation.y = i * Math.PI / 2; rotor.add(b); box(0.62, 0.015, 0.13, M.wood, 0.4, 0, 0, b); }
+    hit(g, 1.6, 0.3, 1.6);
+    let s = 0;
+    anims.push(dt => { s = ease(s, d.state.speed, dt, 1.5); rotor.rotation.y += dt * s * 3.2; });
+  },
+  heater(d) {
+    const g = deviceGroup(d); g.rotation.y = -Math.PI / 2;
+    box(0.34, 0.5, 0.14, M.white, 0, 0, 0, g);
+    const led = ledMat(); const l = new THREE.Mesh(new THREE.SphereGeometry(0.024, 8, 6), led); l.position.set(0, -0.12, 0.075); g.add(l);
+    const f = new Flow(g, [0, 0.25, 0.08], [0, 1, 0.3], '--accent', 10, 0.25, 0.7, 0.03);
+    hit(g, 0.5, 0.7, 0.4);
+    d.refresh3d = () => { f.active = d.state.on; led.color.set(d.state.on ? css('--crit') : '#555555'); };
+  },
+  garage(d) {
+    const g = deviceGroup(d);
+    const pivot = new THREE.Group(); pivot.position.y = 2.2; g.add(pivot);
+    const pm = new THREE.MeshStandardMaterial({ color: 0xc9cdc9, roughness: 0.7 });
+    box(0.06, 2.2, 2.3, pm, 0, -1.1, 0, pivot);
+    for (let i = 1; i < 5; i++) box(0.07, 0.02, 2.3, M.dark, 0, -i * 0.44, 0, pivot);
+    hit(g, 0.4, 2.2, 2.3, 0, 1.1, 0);
+    let o = d.state.open;
+    anims.push(dt => { o = ease(o, d.state.open, dt, 2); pivot.scale.y = Math.max(0.06, 1 - 0.94 * o / 100); });
+  },
+  gas(d) {
+    const g = deviceGroup(d);
+    const c = new THREE.Mesh(new THREE.CylinderGeometry(0.11, 0.11, 0.04, 20), M.white); g.add(c);
+    const led = ledMat(); const l = new THREE.Mesh(new THREE.SphereGeometry(0.03, 8, 6), led); l.position.y = -0.03; g.add(l);
+    hit(g, 0.5, 0.4, 0.5);
+    let t = 0, wasCrit = false;
+    anims.push(dt => {
+      t += dt; const lv = gasLevel();
+      led.color.set(css('--' + lv));
+      if (lv === 'crit') floors.kitchen.material.emissive.set(css('--crit')).multiplyScalar(0.18 + 0.14 * Math.sin(t * 6));
+      else if (wasCrit) highlightRoom();
+      wasCrit = lv === 'crit';
+    });
+  }
+};
+
+// selection ring
+let ring;
+function buildRing() {
+  ring = new THREE.Mesh(new THREE.TorusGeometry(0.42, 0.022, 8, 48), new THREE.MeshBasicMaterial({ color: 0xffffff, depthTest: false, transparent: true }));
+  ring.renderOrder = 10; ring.visible = false; scene.add(ring);
+}
+
+let isDarkNow = isDark();
+function applyTheme() {
+  isDarkNow = isDark();
+  if (!renderer) { drawSpark(); return; }
+  scene.background = new THREE.Color(css('--scene-bg'));
+  scene.traverse(o => { if (o.material && o.material.userData && o.material.userData.token) o.material.color.set(css(o.material.userData.token)); });
+  hemi.intensity = isDarkNow ? 0.32 : 0.75; sun.intensity = isDarkNow ? 0.12 : 0.7;
+  hemi.color.set(isDarkNow ? '#9fb3d9' : '#ffffff');
+  flows.forEach(f => f.setColor(css(f.token)));
+  ring.material.color.set(css('--accent'));
+  highlightRoom();
+  DEVICES.forEach(d => d.refresh3d && d.refresh3d());
+  drawSpark();
+}
+
+function initScene() {
+  renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+  stage.prepend(renderer.domElement);
+  controls = new THREE.OrbitControls(camera, renderer.domElement);
+  controls.target.set(...HOME_TARGET); controls.enableDamping = true; controls.dampingFactor = 0.08;
+  controls.maxPolarAngle = 1.38; controls.minDistance = 6; controls.maxDistance = 38;
+  hemi = new THREE.HemisphereLight(0xffffff, 0x6b7466, 0.75); scene.add(hemi);
+  sun = new THREE.DirectionalLight(0xffffff, 0.7); sun.position.set(8, 16, 10); scene.add(sun);
+  buildHouse();
+  DEVICES.forEach(d => BUILDERS[d.type](d));
+  buildRing();
+  new ResizeObserver(resize).observe(stage); resize();
+  camera.position.set(...homeCam());
+  controls.maxDistance = 50;
+}
+function resize() {
+  const r = stage.getBoundingClientRect();
+  renderer.setSize(r.width, r.height, false);
+  camera.aspect = r.width / Math.max(1, r.height); camera.updateProjectionMatrix();
+}
+
+/* labels + picking */
+const labelsEl = $('#labels'), htip = $('#htip');
+const roomLabels = {};
+for (const [k, r] of Object.entries(ROOMS)) {
+  const b = el('button', 'rlabel'); b.type = 'button';
+  b.innerHTML = `<b>${r.name}</b><span class="mono"></span>`;
+  b.onclick = () => selectRoom(k);
+  b.dataset.room = k; labelsEl.append(b); roomLabels[k] = b;
+}
+const tmpV = renderer ? new THREE.Vector3() : null;
+function project(x, y, z, node, w, h) {
+  tmpV.set(x, y, z).project(camera);
+  const vis = tmpV.z < 1 && Math.abs(tmpV.x) < 1.1 && Math.abs(tmpV.y) < 1.1;
+  node.hidden = !vis;
+  if (vis) node.style.transform = `translate(${(tmpV.x * .5 + .5) * w}px, ${(-tmpV.y * .5 + .5) * h}px) translate(-50%, -100%)`;
+}
+function updateLabels() {
+  const w = stage.clientWidth, h = stage.clientHeight;
+  for (const [k, r] of Object.entries(ROOMS)) {
+    project((r.x[0] + r.x[1]) / 2, 2.9, (r.z[0] + r.z[1]) / 2, roomLabels[k], w, h);
+  }
+}
+function updateRoomLabelText() {
+  for (const k of Object.keys(ROOMS)) {
+    const e = env[k], lb = roomLabels[k];
+    let t = `${nf1.format(e.temp)}°C · ${nf0.format(e.hum)}%`;
+    if (k === 'kitchen') t += ` · ${nf0.format(e.gas)} ppm`;
+    lb.querySelector('.mono').textContent = t;
+    lb.classList.toggle('alarm', k === 'kitchen' && gasLevel() === 'crit');
+    lb.classList.toggle('sel', k === selectedRoom);
+  }
+}
+
+const ray = renderer ? new THREE.Raycaster() : null, ptr = renderer ? new THREE.Vector2() : null;
+function pick(ev) {
+  const r = renderer.domElement.getBoundingClientRect();
+  ptr.set(((ev.clientX - r.left) / r.width) * 2 - 1, -((ev.clientY - r.top) / r.height) * 2 + 1);
+  ray.setFromCamera(ptr, camera);
+  const hits = ray.intersectObjects(pickables, false);
+  for (const h of hits) {
+    let o = h.object;
+    while (o && !o.userData.id && !o.userData.room) o = o.parent;
+    if (o) return o.userData.id ? { id: o.userData.id } : { room: o.userData.room };
+  }
+  return null;
+}
+let downAt = null;
+function bindPointer() {
+  const c = renderer.domElement;
+  c.addEventListener('pointerdown', e => { downAt = [e.clientX, e.clientY]; });
+  c.addEventListener('pointerup', e => {
+    if (!downAt || Math.hypot(e.clientX - downAt[0], e.clientY - downAt[1]) > 5) return;
+    const p = pick(e);
+    if (p && p.id) selectDevice(p.id, { from3d: true });
+    else if (p && p.room) { selectRoom(p.room); closeOverlay(); }
+    else closeOverlay();
+  });
+  c.addEventListener('pointermove', e => {
+    if (e.buttons) { htip.hidden = true; return; }
+    const p = pick(e);
+    if (p && p.id) {
+      const d = dev[p.id], r = stage.getBoundingClientRect();
+      htip.innerHTML = ''; htip.append(d.name); const s = el('small'); s.textContent = `${ROOMS[d.room].name} · ${summary(d)}`; htip.append(s);
+      htip.style.transform = `translate(${e.clientX - r.left + 14}px, ${e.clientY - r.top + 14}px)`;
+      htip.hidden = false; c.style.cursor = 'pointer';
+    } else { htip.hidden = true; c.style.cursor = p && p.room ? 'pointer' : ''; }
+  });
+  c.addEventListener('pointerleave', () => { htip.hidden = true; });
+}
+
+/* camera focus */
+let camAnim = null;
+function focusOn(target, camPos) {
+  camAnim = { t: 0, fromT: controls.target.clone(), toT: new THREE.Vector3(...target), fromC: camera.position.clone(), toC: camPos ? new THREE.Vector3(...camPos) : null };
+}
+
+let last = performance.now();
+const reduceMotion = matchMedia('(prefers-reduced-motion: reduce)').matches;
+function frame(now) {
+  const dt = Math.min(0.05, (now - last) / 1000); last = now;
+  if (camAnim) {
+    camAnim.t = Math.min(1, camAnim.t + dt / 0.7);
+    const k = 1 - Math.pow(1 - camAnim.t, 3);
+    controls.target.lerpVectors(camAnim.fromT, camAnim.toT, k);
+    if (camAnim.toC) camera.position.lerpVectors(camAnim.fromC, camAnim.toC, k);
+    if (camAnim.t >= 1) camAnim = null;
+  }
+  controls.update();
+  anims.forEach(f => f(dt));
+  flows.forEach(f => f.tick(dt));
+  if (ring.visible) {
+    ring.lookAt(camera.position);
+    ring.scale.setScalar(reduceMotion ? 1 : 1 + 0.08 * Math.sin(now / 260));
+  }
+  renderer.render(scene, camera);
+  updateLabels();
+  requestAnimationFrame(frame);
+}
+
+/* ---------- panel: controls ---------- */
+function buildControls(d, prefix) {
+  const wrap = el('div', 'ctl'), ups = [];
+  const uid = k => `${prefix}-${d.id.replace('/', '-')}-${k}`;
+  const sw = (key, label) => {
+    const b = el('button', 'sw'); b.type = 'button'; b.id = uid(key); b.setAttribute('role', 'switch'); b.setAttribute('aria-label', `${label} ${d.name} ${ROOMS[d.room].name}`);
+    b.onclick = () => command(d.id, { [key]: !d.state[key] });
+    ups.push(() => b.setAttribute('aria-checked', String(!!d.state[key])));
+    wrap.append(b);
+  };
+  const range = (key, label, fmt) => {
+    const lab = el('label', 'rng'); lab.append(label);
+    const inp = el('input'); inp.type = 'range'; inp.id = uid(key); inp.min = LIMITS[key][0]; inp.max = LIMITS[key][1]; inp.step = 1;
+    const out = el('output', 'mono');
+    inp.oninput = () => { out.textContent = fmt(+inp.value); if (localMode()) applyState(d.id, { [key]: +inp.value }, 'ผู้ใช้', { quiet: true, publish: false }); };
+    inp.onchange = () => command(d.id, { [key]: +inp.value }, 'ผู้ใช้', { force: true });
+    lab.append(inp, out); wrap.append(lab);
+    ups.push(() => { if (document.activeElement !== inp) inp.value = d.state[key]; out.textContent = fmt(d.state[key]); });
+  };
+  const btn = (text, patch, cls = 'btn') => { const b = el('button', cls); b.type = 'button'; b.textContent = text; b.onclick = () => command(d.id, patch); wrap.append(b); return b; };
+
+  switch (d.type) {
+    case 'light': sw('on', 'เปิดปิด'); range('level', 'ความสว่าง', v => v + '%'); break;
+    case 'tv': case 'heater': sw('on', 'เปิดปิด'); break;
+    case 'ac': {
+      sw('on', 'เปิดปิด');
+      const st = el('div', 'step'); st.setAttribute('role', 'group'); st.setAttribute('aria-label', 'อุณหภูมิที่ตั้ง');
+      const minus = el('button', null, '−'); minus.type = 'button'; minus.id = uid('minus'); minus.setAttribute('aria-label', 'ลดอุณหภูมิ');
+      const plus = el('button', null, '+'); plus.type = 'button'; plus.id = uid('plus'); plus.setAttribute('aria-label', 'เพิ่มอุณหภูมิ');
+      const out = el('output', 'mono');
+      minus.onclick = () => command(d.id, { setpoint: d.state.setpoint - 1 });
+      plus.onclick = () => command(d.id, { setpoint: d.state.setpoint + 1 });
+      st.append(minus, out, plus); wrap.append(st);
+      ups.push(() => { out.textContent = d.state.setpoint + '°C'; });
+      const now = el('span', 'note mono'); wrap.append(now);
+      ups.push(() => { now.textContent = `ห้อง ${nf1.format(env[d.room].temp)}°C`; });
+      break;
+    }
+    case 'curtain': range('open', 'เปิด', v => v + '%'); break;
+    case 'lock': {
+      const b = el('button', 'btn'); b.type = 'button'; b.id = uid('lock');
+      b.onclick = () => command(d.id, { locked: !d.state.locked });
+      ups.push(() => { b.textContent = d.state.locked ? 'ปลดล็อก' : 'ล็อกประตู'; b.className = d.state.locked ? 'btn' : 'btn primary'; });
+      wrap.append(b); break;
+    }
+    case 'fan': {
+      const seg = el('div', 'seg'); seg.setAttribute('role', 'group'); seg.setAttribute('aria-label', 'ระดับความแรง');
+      ['ปิด', '1', '2', '3'].forEach((t, i) => {
+        const b = el('button'); b.type = 'button'; b.id = uid('speed' + i); b.textContent = t; b.onclick = () => command(d.id, { speed: i }); seg.append(b);
+        ups.push(() => b.setAttribute('aria-pressed', String(d.state.speed === i)));
+      });
+      wrap.append(seg); break;
+    }
+    case 'garage': {
+      btn('เปิดสุด', { open: 100 }); btn('ปิด', { open: 0 });
+      range('open', '', v => v + '%'); break;
+    }
+    case 'gas': {
+      const n = el('span', 'note'); n.textContent = `เตือนเมื่อเกิน ${GAS_ALARM} ppm · อ่านค่าอย่างเดียว`; wrap.append(n); break;
+    }
+  }
+  const update = () => ups.forEach(f => f());
+  update();
+  return { node: wrap, update };
+}
+
+const devsEl = $('#devs'), tabsEl = $('#tabs');
+let selectedRoom = 'all', selectedId = null;
+const rows = {};
+function buildRows() {
+  DEVICES.forEach(d => {
+    const row = el('div', 'dev'); row.dataset.room = d.room;
+    const h = el('div', 'dev-h'); h.tabIndex = 0; h.setAttribute('role', 'button');
+    const dot = el('span', 'dot');
+    const nm = el('div', 'dev-name'); nm.innerHTML = `<b></b><small></small>`; nm.querySelector('b').textContent = d.name;
+    const rt = el('div', 'dev-r'); rt.innerHTML = `<span class="st"></span><span class="w mono"></span>`;
+    h.append(dot, nm, rt);
+    h.onclick = () => selectDevice(d.id, { focus: true });
+    h.onkeydown = e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); selectDevice(d.id, { focus: true }); } };
+    const c = buildControls(d, 'row');
+    row.append(h, c.node); devsEl.append(row);
+    d.uis.push(c.update);
+    rows[d.id] = { row, dot, room: nm.querySelector('small'), st: rt.querySelector('.st'), w: rt.querySelector('.w') };
+  });
+}
+function buildTabs() {
+  [['all', 'ทั้งหมด'], ...Object.entries(ROOMS).map(([k, r]) => [k, r.name])].forEach(([k, n]) => {
+    const t = el('button', 'tab'); t.type = 'button'; t.id = 'tab-' + k; t.setAttribute('role', 'tab'); t.textContent = n; t.dataset.room = k;
+    t.onclick = () => selectRoom(k); tabsEl.append(t);
+  });
+}
+function selectRoom(k) {
+  selectedRoom = selectedRoom === k && k !== 'all' ? 'all' : k;
+  tabsEl.querySelectorAll('.tab').forEach(t => t.setAttribute('aria-selected', String(t.dataset.room === selectedRoom)));
+  DEVICES.forEach(d => { rows[d.id].row.hidden = selectedRoom !== 'all' && d.room !== selectedRoom; });
+  $('#devCount').textContent = selectedRoom === 'all' ? `${DEVICES.length} จุด` : `${DEVICES.filter(d => d.room === selectedRoom).length} จุด`;
+  highlightRoom(); updateRoomLabelText();
+}
+function highlightRoom() {
+  if (!renderer) return;
+  const acc = new THREE.Color(css('--accent'));
+  for (const [k, f] of Object.entries(floors)) {
+    if (k === selectedRoom) f.material.emissive.copy(acc).multiplyScalar(isDarkNow ? 0.22 : 0.16);
+    else f.material.emissive.setRGB(0, 0, 0);
+  }
+}
+
+const ov = $('#ov');
+let ovCtl = null;
+function selectDevice(id, opts = {}) {
+  const d = dev[id];
+  selectedId = id;
+  Object.entries(rows).forEach(([k, r]) => r.row.classList.toggle('sel', k === id));
+  if (opts.from3d && selectedRoom !== 'all' && selectedRoom !== d.room) selectRoom(d.room);
+  if (renderer) {
+    const wp = new THREE.Vector3(); d.obj.getWorldPosition(wp);
+    if (d.type === 'lock') wp.set(-3, 1.05, 4);
+    if (d.type === 'garage') wp.set(6, 1.1, -2.25);
+    ring.position.copy(wp); ring.visible = true;
+    if (opts.focus) focusOn([wp.x * 0.6, 0.4, wp.z * 0.6]);
+  }
+  openOverlay(d);
+}
+function openOverlay(d) {
+  if (ovCtl) DEVICES.forEach(x => { x.uis = x.uis.filter(f => f !== ovCtl.update); });
+  ov.innerHTML = '';
+  const h = el('div', 'ov-h');
+  const t = el('div'); const h2 = el('h2'); h2.textContent = d.name; const sm = el('small'); t.append(h2, sm);
+  const x = el('button', 'x', '×'); x.type = 'button'; x.setAttribute('aria-label', 'ปิดแผงอุปกรณ์'); x.onclick = closeOverlay;
+  h.append(t, x);
+  ovCtl = buildControls(d, 'ov');
+  const upd = ovCtl.update;
+  ovCtl.update = () => { upd(); sm.textContent = `${ROOMS[d.room].name} · ${summary(d)} · ${nf0.format(powerOf(d))} W`; };
+  ovCtl.update();
+  ov.append(h, ovCtl.node); ov.hidden = false;
+  d.uis.push(ovCtl.update);
+}
+function closeOverlay() {
+  ov.hidden = true;
+  if (ovCtl) DEVICES.forEach(x => { x.uis = x.uis.filter(f => f !== ovCtl.update); });
+  ovCtl = null; selectedId = null;
+  if (ring) ring.visible = false;
+  Object.values(rows).forEach(r => r.row.classList.remove('sel'));
+}
+
+function refreshDevice(d) {
+  const r = rows[d.id];
+  if (r) {
+    r.dot.className = 'dot ' + dotClass(d);
+    r.room.textContent = ROOMS[d.room].name;
+    r.st.textContent = summary(d);
+    r.w.textContent = `${nf0.format(powerOf(d))} W`;
+  }
+  d.uis.forEach(f => f());
+  if (d.refresh3d) d.refresh3d();
+}
+
+/* ---------- summary + energy ---------- */
+const HIST_N = 120;
+const hist = [];
+let energyKWh = 7.82;
+function refreshSummary() {
+  const w = totalPower();
+  $('#kW').innerHTML = `${nf0.format(w)}<small>W</small>`;
+  $('#kWnote').textContent = w > POWER_CAP ? `เกินเพดาน ${nf1.format(POWER_CAP / 1000)} kW` : `เพดาน ${nf1.format(POWER_CAP / 1000)} kW`;
+  $('#kWnote').style.color = w > POWER_CAP ? 'var(--crit)' : '';
+  $('#kE').innerHTML = `${nf2.format(energyKWh)}<small>kWh</small>`;
+  $('#kCost').textContent = `ประมาณ ${nf0.format(energyKWh * TARIFF)} บาท`;
+  const inRooms = ['living', 'kitchen', 'bedroom', 'bath'];
+  const avgT = inRooms.reduce((a, k) => a + env[k].temp, 0) / inRooms.length;
+  const avgH = inRooms.reduce((a, k) => a + env[k].hum, 0) / inRooms.length;
+  $('#kT').innerHTML = `${nf1.format(avgT)}<small>°C</small>`;
+  $('#kH').textContent = `ความชื้น ${nf0.format(avgH)}%`;
+  const ctrl = DEVICES.filter(d => ['light', 'ac', 'tv', 'heater', 'fan'].includes(d.type));
+  $('#kN').innerHTML = `${ctrl.filter(isActive).length}<small>/ ${ctrl.length}</small>`;
+  const door = dev['living/door'].state.locked, gar = dev['garage/door'].state.open;
+  const sec = $('#kSec');
+  sec.textContent = door && gar === 0 ? 'ประตูล็อกครบ' : !door ? 'ประตูหน้าไม่ได้ล็อก' : 'ประตูโรงรถเปิดอยู่';
+  sec.style.color = door && gar === 0 ? 'var(--good)' : 'var(--warn)';
+
+  const items = DEVICES.map(d => ({ n: `${d.name} · ${ROOMS[d.room].name}`, w: powerOf(d) }))
+    .concat([{ n: 'ตู้เย็นและโหลดพื้นฐาน', w: BASE_LOAD }])
+    .sort((a, b) => b.w - a.w).slice(0, 5);
+  const mx = items[0].w || 1;
+  const bd = $('#breakdown'); bd.innerHTML = '';
+  items.forEach(it => {
+    const li = el('li'); const n = el('span', 'n'); n.textContent = it.n; n.title = it.n;
+    li.append(n, el('span', 'bar', `<i style="width:${(it.w / mx * 100).toFixed(1)}%"></i>`), el('span', 'v mono', `${nf0.format(it.w)} W`));
+    bd.append(li);
+  });
+
+  const a = $('#alert');
+  if (gasLevel() === 'crit') { a.hidden = false; $('#alertText').textContent = `ตรวจพบแก๊สในห้องครัว ${nf0.format(env.kitchen.gas)} ppm เปิดหน้าต่างและปิดวาล์วแก๊ส`; }
+  else a.hidden = true;
+}
+
+const spark = $('#spark'), stip = $('#stip');
+let sparkHover = -1;
+function sparkGeom() {
+  const r = spark.getBoundingClientRect();
+  const W = r.width, H = r.height, padT = 16, padB = 4, padR = 6;
+  const peak = Math.max(...hist);
+  const maxV = Math.max(1000, Math.ceil(peak * 1.08 / 500) * 500);
+  const off = HIST_N - hist.length;
+  const x = i => (W - padR) * ((i + off) / (HIST_N - 1));
+  const y = v => padT + (H - padT - padB) * (1 - v / maxV);
+  return { W, H, maxV, x, y, padR, off, peak };
+}
+function drawSpark() {
+  if (!hist.length) return;
+  const dpr = Math.min(devicePixelRatio || 1, 2);
+  const r = spark.getBoundingClientRect();
+  if (!r.width) return;
+  if (spark.width !== Math.round(r.width * dpr)) { spark.width = Math.round(r.width * dpr); spark.height = Math.round(r.height * dpr); }
+  const ctx = spark.getContext('2d'); ctx.setTransform(dpr, 0, 0, dpr, 0, 0); ctx.clearRect(0, 0, r.width, r.height);
+  const g = sparkGeom();
+  const ink = css('--muted'), line = css('--line'), acc = css('--accent'), surf = css('--surface');
+  ctx.font = `10.5px ${css('--f-mono')}`; ctx.fillStyle = ink; ctx.textBaseline = 'bottom';
+  [g.maxV, g.maxV / 2].forEach(v => {
+    ctx.strokeStyle = line; ctx.lineWidth = 1; ctx.setLineDash([2, 3]);
+    ctx.beginPath(); ctx.moveTo(0, Math.round(g.y(v)) + .5); ctx.lineTo(g.W, Math.round(g.y(v)) + .5); ctx.stroke();
+    ctx.setLineDash([]); if (v === g.maxV) ctx.fillText(`${nf0.format(v)} W`, 0, g.y(v) - 2);
+  });
+  ctx.strokeStyle = line; ctx.beginPath(); ctx.moveTo(0, g.y(0) + .5); ctx.lineTo(g.W, g.y(0) + .5); ctx.stroke();
+  ctx.beginPath(); hist.forEach((v, i) => i ? ctx.lineTo(g.x(i), g.y(v)) : ctx.moveTo(g.x(i), g.y(v)));
+  ctx.lineTo(g.x(hist.length - 1), g.y(0)); ctx.lineTo(g.x(0), g.y(0)); ctx.closePath();
+  ctx.fillStyle = css('--accent-soft'); ctx.fill();
+  ctx.beginPath(); hist.forEach((v, i) => i ? ctx.lineTo(g.x(i), g.y(v)) : ctx.moveTo(g.x(i), g.y(v)));
+  ctx.strokeStyle = acc; ctx.lineWidth = 2; ctx.lineJoin = 'round'; ctx.stroke();
+  const dotAt = i => { ctx.beginPath(); ctx.arc(g.x(i), g.y(hist[i]), 4, 0, Math.PI * 2); ctx.fillStyle = acc; ctx.fill(); ctx.lineWidth = 2; ctx.strokeStyle = surf; ctx.stroke(); };
+  if (sparkHover >= 0 && sparkHover < hist.length) {
+    ctx.strokeStyle = ink; ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(Math.round(g.x(sparkHover)) + .5, g.y(g.maxV)); ctx.lineTo(Math.round(g.x(sparkHover)) + .5, g.y(0)); ctx.stroke();
+    dotAt(sparkHover);
+  }
+  dotAt(hist.length - 1);
+  $('#peak').textContent = `สูงสุด ${nf0.format(g.peak)} W`;
+}
+spark.addEventListener('pointermove', e => {
+  const r = spark.getBoundingClientRect(), g = sparkGeom();
+  const i = clamp(Math.round((e.clientX - r.left) / (g.W - g.padR) * (HIST_N - 1)) - g.off, 0, hist.length - 1);
+  sparkHover = i;
+  const ago = hist.length - 1 - i;
+  stip.textContent = `${ago ? ago + ' วิที่แล้ว' : 'ตอนนี้'} · ${nf0.format(hist[i])} W`;
+  stip.style.left = clamp(g.x(i), 60, g.W - 60) + 'px'; stip.hidden = false;
+  drawSpark();
+});
+spark.addEventListener('pointerleave', () => { sparkHover = -1; stip.hidden = true; drawSpark(); });
+
+/* ---------- rules + scenes ---------- */
+const RULES = [
+  { id: 'gas', t: 'แก๊สรั่ว → เปิดเครื่องดูดควันระดับ 3', s: `เมื่อเซนเซอร์อ่านเกิน ${GAS_ALARM} ppm และปิดเองเมื่อต่ำกว่า ${GAS_CLEAR} ppm` },
+  { id: 'lock', t: 'ล็อกประตูหน้าอัตโนมัติ', s: 'ล็อกเองหลังปลดล็อกไว้ 30 วินาที' },
+  { id: 'cap', t: `จำกัดการใช้ไฟ ${nf1.format(POWER_CAP / 1000)} kW`, s: 'ใช้ไฟเกินเพดานเมื่อไร ระบบปิดเครื่องทำน้ำอุ่นก่อน' }
+];
+const rules = Object.assign({ gas: true, lock: true, cap: true }, store.get('rules', {}));
+function buildRules() {
+  const box = $('#rules');
+  RULES.forEach(r => {
+    const l = el('label', 'rule'); const c = el('input'); c.type = 'checkbox'; c.id = 'rule-' + r.id; c.checked = rules[r.id];
+    c.onchange = () => {
+      rules[r.id] = c.checked; store.set('rules', rules);
+      log('ผู้ใช้', `${c.checked ? 'เปิด' : 'ปิด'}กฎ: ${r.t}`);
+      if (r.id === 'lock') { const d = dev['living/door']; d.autoLockAt = c.checked && !d.state.locked ? Date.now() + 30000 : 0; refreshDevice(d); }
+    };
+    const t = el('span'); t.textContent = r.t; const s = el('small'); s.textContent = r.s; t.append(s);
+    l.append(c, t); box.append(l);
+  });
+  $('#leakBtn').onclick = () => { gasLeak = 950; log('ผู้ใช้', 'เริ่มจำลองแก๊สรั่วในห้องครัว', 'warn'); simTick(); };
+}
+
+const LIGHTS = DEVICES.filter(d => d.type === 'light').map(d => d.id);
+const SCENES = [
+  { n: 'กลับถึงบ้าน', s: 'ปลดล็อก เปิดไฟและแอร์ห้องนั่งเล่น', run: () => [
+    ['living/door', { locked: false }], ['living/light', { on: true, level: 80 }], ['living/ac', { on: true, setpoint: 25 }], ['living/curtain', { open: 70 }]] },
+  { n: 'ออกจากบ้าน', s: 'ปิดทุกอย่าง ล็อกประตู ปิดโรงรถ', run: () => [
+    ...LIGHTS.map(id => [id, { on: false }]), ['living/ac', { on: false }], ['bedroom/ac', { on: false }], ['living/tv', { on: false }],
+    ['bedroom/fan', { speed: 0 }], ['bath/heater', { on: false }], ['living/curtain', { open: 0 }], ['living/door', { locked: true }], ['garage/door', { open: 0 }]] },
+  { n: 'เข้านอน', s: 'ไฟห้องนอนหรี่ แอร์ 26°C ล็อกบ้าน', run: () => [
+    ...LIGHTS.filter(id => id !== 'bedroom/light').map(id => [id, { on: false }]), ['bedroom/light', { on: true, level: 15 }],
+    ['bedroom/ac', { on: true, setpoint: 26 }], ['bedroom/fan', { speed: 1 }], ['living/ac', { on: false }], ['living/tv', { on: false }],
+    ['living/curtain', { open: 0 }], ['living/door', { locked: true }], ['garage/door', { open: 0 }]] }
+];
+function buildScenes() {
+  const box = $('#scenes');
+  SCENES.forEach((sc, i) => {
+    const b = el('button', 'scene'); b.type = 'button'; b.id = 'scene-' + i;
+    b.innerHTML = `<b></b><small></small>`; b.querySelector('b').textContent = sc.n; b.querySelector('small').textContent = sc.s;
+    b.onclick = () => { log('ฉาก', `เรียกใช้ฉาก “${sc.n}”`); sc.run().forEach(([id, p]) => command(id, p, 'ฉาก', { quiet: localMode() })); };
+    box.append(b);
+  });
+}
+
+/* ---------- simulation ---------- */
+let tickN = 0;
+function simTick() {
+  tickN++;
+  for (const [k, e] of Object.entries(env)) {
+    if (realSensor.has(k)) continue;
+    const ac = dev[k + '/ac'];
+    const heater = k === 'bath' && dev['bath/heater'].state.on;
+    if (ac && ac.state.on) { e.temp += (ac.state.setpoint - e.temp) * 0.035; e.hum += (52 - e.hum) * 0.02; }
+    else { const gain = k === 'garage' ? 0 : k === 'kitchen' ? 1.5 : 0; e.temp += (OUTDOOR.temp - 1.5 + gain - e.temp) * 0.006; e.hum += (OUTDOOR.hum - 4 - e.hum) * 0.01; }
+    if (heater) { e.hum += (88 - e.hum) * 0.03; e.temp += 0.01; }
+    e.temp += (Math.random() - .5) * 0.04; e.hum += (Math.random() - .5) * 0.3;
+    e.hum = clamp(e.hum, 20, 99);
+  }
+  if (!realSensor.has('kitchen')) {
+    const hood = dev['kitchen/hood'].state.speed;
+    gasLeak *= 0.985 - 0.022 * hood; if (gasLeak < 1) gasLeak = 0;
+    env.kitchen.gas = 108 + Math.random() * 14 + gasLeak;
+  }
+  // rules
+  const g = env.kitchen.gas;
+  if (!gasAlarm && g >= GAS_ALARM) {
+    gasAlarm = true; log('เซนเซอร์', `ตรวจพบแก๊สในห้องครัว ${nf0.format(g)} ppm`, 'crit');
+    if (rules.gas && dev['kitchen/hood'].state.speed < 3) { command('kitchen/hood', { speed: 3 }, 'อัตโนมัติ'); autoHood = true; }
+  } else if (gasAlarm && g < GAS_CLEAR) {
+    gasAlarm = false; log('เซนเซอร์', `ระดับแก๊สกลับสู่ปกติ ${nf0.format(g)} ppm`);
+    if (rules.gas && autoHood) { command('kitchen/hood', { speed: 0 }, 'อัตโนมัติ'); autoHood = false; }
+  }
+  const door = dev['living/door'];
+  if (!door.state.locked && door.autoLockAt && Date.now() >= door.autoLockAt) { door.autoLockAt = 0; command('living/door', { locked: true }, 'อัตโนมัติ'); }
+  if (rules.cap && totalPower() > POWER_CAP && dev['bath/heater'].state.on) {
+    log('อัตโนมัติ', `ใช้ไฟ ${nf0.format(totalPower())} W เกินเพดาน จึงปิดเครื่องทำน้ำอุ่น`, 'warn');
+    command('bath/heater', { on: false }, 'อัตโนมัติ', { quiet: true });
+  }
+
+  const w = totalPower();
+  energyKWh += w / 1000 / 3600;
+  hist.push(w); if (hist.length > HIST_N) hist.shift();
+  DEVICES.forEach(d => { if (d.type === 'ac' || d.type === 'gas' || d.type === 'lock') refreshDevice(d); });
+  if (ovCtl) ovCtl.update();
+  refreshSummary(); updateRoomLabelText(); drawSpark();
+  if (mq.connected && mq.sim && tickN % 5 === 0) mqPublishSensors();
+}
+
+/* ---------- MQTT ---------- */
+const mq = { client: null, connected: false, sim: true, base: '', lastErr: '' };
+const saved = store.get('mq', {}) || {};
+if (!saved.base) { saved.base = 'house3d-' + Math.random().toString(16).slice(2, 6); store.set('mq', saved); }
+$('#mqUrl').value = saved.url || $('#mqUrl').value;
+$('#mqBase').value = saved.base;
+$('#mqUser').value = saved.user || '';
+$('#mqSim').checked = saved.sim !== false;
+function renderTopics() {
+  const b = $('#mqBase').value.trim() || 'house3d';
+  $('#topics').innerHTML =
+`<b>สั่งงาน</b>  ${b}/&lt;ห้อง&gt;/&lt;อุปกรณ์&gt;/set
+<b>สถานะ</b>   ${b}/&lt;ห้อง&gt;/&lt;อุปกรณ์&gt;/state  (retain)
+<b>เซนเซอร์</b> ${b}/&lt;ห้อง&gt;/sensor/state
+
+ตัวอย่าง
+${b}/living/light/set   {"on":true,"level":60}
+${b}/living/ac/set      {"on":true,"setpoint":24}
+${b}/garage/door/set    {"open":100}
+${b}/bedroom/sensor/state {"temp":26.4,"hum":58}`;
+}
+$('#mqBase').addEventListener('input', renderTopics);
+renderTopics();
+function setMqStatus(t, cls = '') { const s = $('#mqStatus'); s.textContent = t; s.className = 'mq-status ' + cls; }
+function updateConnUI() {
+  const p = $('#connPill');
+  if (mq.connected) { p.className = 'pill live'; p.textContent = mq.sim ? 'MQTT · จำลองอุปกรณ์' : 'MQTT · อุปกรณ์จริง'; $('#mqBtn').textContent = 'ตัดการเชื่อมต่อ'; $('#mqSum').textContent = 'เชื่อมต่อแล้ว'; }
+  else { p.className = 'pill sim'; p.textContent = 'โหมดจำลอง'; $('#mqBtn').textContent = 'เชื่อมต่อ'; $('#mqSum').textContent = 'ยังไม่เชื่อมต่อ'; }
+  ['mqUrl', 'mqBase', 'mqUser', 'mqPass', 'mqSim'].forEach(id => { $('#' + id).disabled = mq.connected; });
+}
+function mqConnect() {
+  if (!window.mqtt) { setMqStatus('โหลดไลบรารี MQTT ไม่สำเร็จ ตรวจสอบอินเทอร์เน็ตแล้วโหลดหน้าใหม่', 'crit'); return; }
+  const url = $('#mqUrl').value.trim(), base = $('#mqBase').value.trim().replace(/\/+$/, ''), user = $('#mqUser').value.trim(), pass = $('#mqPass').value;
+  if (!/^wss?:\/\//.test(url)) { setMqStatus('Broker ต้องขึ้นต้นด้วย ws:// หรือ wss:// เช่น wss://broker.emqx.io:8084/mqtt', 'crit'); return; }
+  if (!base || /[#+]/.test(base)) { setMqStatus('Topic หลักต้องไม่ว่างและห้ามมี # หรือ +', 'crit'); return; }
+  mq.sim = $('#mqSim').checked; mq.base = base; mq.lastErr = '';
+  store.set('mq', { url, base, user, sim: mq.sim });
+  setMqStatus('กำลังเชื่อมต่อ…');
+  let client;
+  try {
+    client = mqtt.connect(url, { username: user || undefined, password: pass || undefined, clientId: 'house3d-ui-' + Math.random().toString(16).slice(2, 8), reconnectPeriod: 0, connectTimeout: 8000, clean: true });
+  } catch (e) { setMqStatus('เชื่อมต่อไม่ได้: ' + e.message, 'crit'); return; }
+  mq.client = client;
+  client.on('connect', () => {
+    mq.connected = true;
+    const subs = [`${base}/+/+/state`]; if (mq.sim) subs.push(`${base}/+/+/set`);
+    client.subscribe(subs, { qos: 1 });
+    if (mq.sim) { DEVICES.forEach(mqPublishState); mqPublishSensors(); }
+    setMqStatus(`เชื่อมต่อ ${new URL(url).host} แล้ว · ${base}/#`, 'good');
+    log('ระบบ', `เชื่อมต่อ MQTT ${new URL(url).host} (${mq.sim ? 'เบราว์เซอร์จำลองอุปกรณ์' : 'รอสถานะจากอุปกรณ์จริง'})`);
+    updateConnUI();
+  });
+  client.on('message', onMqMessage);
+  client.on('error', err => { mq.lastErr = err && err.message || 'ไม่ทราบสาเหตุ'; });
+  client.on('close', () => {
+    if (mq.client !== client) return;
+    const was = mq.connected; mq.connected = false; mq.client = null; realSensor.clear();
+    if (was) log('ระบบ', 'ตัดการเชื่อมต่อ MQTT แล้ว กลับสู่โหมดจำลอง');
+    setMqStatus(was ? 'ตัดการเชื่อมต่อแล้ว ใช้โหมดจำลองในเบราว์เซอร์' : `เชื่อมต่อไม่สำเร็จ${mq.lastErr ? ': ' + mq.lastErr : ''} ตรวจสอบ URL พอร์ต WebSocket และรหัสผ่าน`, was ? '' : 'crit');
+    updateConnUI();
+    client.end(true);
+  });
+}
+function mqDisconnect() { if (mq.client) mq.client.end(); }
+$('#mqForm').addEventListener('submit', e => { e.preventDefault(); mq.client ? mqDisconnect() : mqConnect(); });
+function mqPublishState(d) {
+  if (!mq.connected || !mq.sim || d.type === 'gas') return;
+  mq.client.publish(`${mq.base}/${d.id}/state`, JSON.stringify(d.state), { qos: 0, retain: true });
+}
+function mqPublishSensors() {
+  for (const [k, e] of Object.entries(env)) {
+    if (realSensor.has(k)) continue;
+    const p = { temp: +e.temp.toFixed(1), hum: Math.round(e.hum), sim: true }; if (k === 'kitchen') p.gas = Math.round(e.gas);
+    mq.client.publish(`${mq.base}/${k}/sensor/state`, JSON.stringify(p), { qos: 0, retain: true });
+  }
+}
+function onMqMessage(topic, payload) {
+  if (!topic.startsWith(mq.base + '/')) return;
+  const [room, name, kind] = topic.slice(mq.base.length + 1).split('/');
+  let data; try { data = JSON.parse(payload.toString()); } catch (e) { return; }
+  if (!data || typeof data !== 'object') return;
+  if (name === 'sensor' && kind === 'state' && env[room]) {
+    if (data.sim) return; // telemetry this page simulated itself
+    if (!realSensor.has(room)) log('MQTT', `รับค่าเซนเซอร์จริงจาก${ROOMS[room].name}`);
+    realSensor.add(room);
+    ['temp', 'hum', 'gas'].forEach(k => { if (typeof data[k] === 'number' && (k !== 'gas' || room === 'kitchen')) env[room][k] = data[k]; });
+    updateRoomLabelText(); refreshSummary();
+    return;
+  }
+  const id = `${room}/${name}`;
+  if (!dev[id]) return;
+  if (kind === 'set' && mq.sim) applyState(id, data, 'MQTT');
+  else if (kind === 'state') applyState(id, data, 'MQTT', { publish: false });
+}
+
+/* ---------- log ---------- */
+const logEl = $('#log');
+function log(src, text, level = '') {
+  const li = el('li', level);
+  li.innerHTML = `<time class="mono">${hhmmss(new Date())}</time><span class="src"></span><span class="txt"></span>`;
+  li.querySelector('.src').textContent = src; li.querySelector('.txt').textContent = text;
+  logEl.prepend(li);
+  while (logEl.children.length > 80) logEl.lastChild.remove();
+}
+
+/* ---------- boot ---------- */
+buildTabs(); buildRows(); buildScenes(); buildRules();
+if (renderer) {
+  initScene(); bindPointer();
+  $('#viewBtn').onclick = () => focusOn(HOME_TARGET, homeCam());
+  $('#wallBtn').onclick = e => {
+    const on = e.currentTarget.getAttribute('aria-pressed') !== 'true';
+    e.currentTarget.setAttribute('aria-pressed', String(on));
+    M.wall.transparent = on; M.wall.opacity = on ? 0.28 : 1; M.wall.depthWrite = !on; M.wall.needsUpdate = true;
+  };
+  requestAnimationFrame(frame);
+} else { $('#wallBtn').disabled = true; $('#viewBtn').disabled = true; }
+$('#outdoor').textContent = `${nf1.format(OUTDOOR.temp)}°C · ${OUTDOOR.hum}%`;
+selectRoom('all');
+DEVICES.forEach(refreshDevice);
+const w0 = totalPower();
+for (let i = 0; i < HIST_N - 1; i++) hist.push(Math.max(200, w0 * (0.82 + 0.25 * Math.sin(i / 11) + Math.random() * 0.08)));
+hist.push(w0);
+applyTheme();
+refreshSummary(); updateRoomLabelText();
+matchMedia('(prefers-color-scheme: dark)').addEventListener('change', applyTheme);
+new MutationObserver(applyTheme).observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
+new ResizeObserver(() => drawSpark()).observe(spark);
+log('ระบบ', `เริ่มโหมดจำลอง อุปกรณ์ ${DEVICES.length} จุดใน ${Object.keys(ROOMS).length} ห้องพร้อมใช้งาน`);
+setInterval(simTick, 1000);
+})();
+</script>
+</body>
+</html>
