@@ -353,7 +353,7 @@ const FLOOR_Y = [0, 3.0];     // finished floor level of each storey (m)
 const STOREY_H = 2.85;        // wall height inside a storey; the 0.15 m slab makes up the rest
 const FLOORS = { 0: 'ชั้น 1', 1: 'ชั้น 2', out: 'ภายนอก' };
 const ROOMS = {
-  living:  { name: 'ห้องนั่งเล่น',    short: 'ห้องนั่งเล่น', floor: 0, x: [-4.5, 4.5],  z: [-0.4, 3.5], label: [-2.6, 1.9] },
+  living:  { name: 'ห้องนั่งเล่น',    short: 'ห้องนั่งเล่น', floor: 0, x: [-4.5, 4.5],  z: [-0.4, 3.5], label: [-1.7, 2.2] },
   kitchen: { name: 'ห้องครัว',        short: 'ห้องครัว',    floor: 0, x: [-4.5, 2.0],  z: [-3.5, -0.4] },
   bath1:   { name: 'ห้องน้ำชั้นล่าง',  short: 'ห้องน้ำ',     floor: 0, x: [2.0, 4.5],   z: [-3.5, -0.4] },
   landing: { name: 'โถงชั้น 2',      short: 'โถงบันได',    floor: 1, x: [-4.5, 4.5],  z: [1.0, 3.5],  label: [-2.6, 2.2] },
@@ -366,7 +366,7 @@ const ROOMS = {
 const STAIR = { x: [-0.6, 3.6], z: [2.35, 3.35], risers: 16 };
 const OUTDOOR = { temp: 33.5, hum: 70 };
 const env = {
-  living:  { temp: 27.4, hum: 58 },
+  living:  { temp: 30.1, hum: 66 },
   kitchen: { temp: 30.6, hum: 67, gas: 118 },
   bath1:   { temp: 29.8, hum: 72 },
   landing: { temp: 31.0, hum: 64 },
@@ -390,7 +390,7 @@ const DOOR = 'living/door', GATE = 'carport/gate', HOOD = 'kitchen/hood', HEATER
 const DEVICES = [
   { id: 'living/light',  type: 'light',   name: 'ไฟเพดาน',          pos: [-2.6, 2.6, 1.2],     state: { on: true, level: 80 } },
   { id: 'living/stair',  type: 'light',   name: 'ไฟบันได',           pos: [1.6, 2.6, 1.7],      state: { on: false, level: 70 } },
-  { id: 'living/ac',     type: 'ac',      name: 'เครื่องปรับอากาศ',   pos: [-4.31, 2.3, 2.7],    face: [1, 0, 0], state: { on: true, setpoint: 25 } },
+  { id: 'living/ac',     type: 'ac',      name: 'เครื่องปรับอากาศ',   pos: [-4.31, 2.3, 0.8],    face: [1, 0, 0], state: { on: false, setpoint: 25 } },
   { id: 'living/tv',     type: 'tv',      name: 'ทีวี',              pos: [-4.4, 1.35, 0.8],    face: [1, 0, 0], state: { on: false } },
   { id: 'living/door',   type: 'lock',    name: 'ประตูหน้าบ้าน',      pos: [-3.4, 0, 3.5],       state: { locked: true } },
   { id: 'kitchen/light', type: 'light',   name: 'ไฟเพดาน',          pos: [-1.2, 2.6, -1.9],    state: { on: true, level: 100 } },
@@ -653,7 +653,7 @@ function buildHouse() {
   const EXT1 = FLOOR_Y[1], X = 4.57;
   wall(S1, 'x', 3.5, -X, X, [[-3.4, -2.4, 0, 2.1], [-1.9, -0.9, 0.9, 2.1, true], [1.2, 2.8, 1.5, 2.5, true]], EXT1);  // front: door, living + stair windows
   wall(S1, 'x', -3.5, -X, X, [[-1.0, 1.2, 1.1, 2.1, true], [3.0, 4.0, 1.6, 2.2, true]], EXT1);                      // back: kitchen + bath windows
-  wall(S1, 'z', -4.5, -3.5, 3.5, [[-2.3, -1.1, 1.0, 2.1, true], [1.75, 2.85, 0.9, 2.0, true]], EXT1);   // kitchen window, living window under the AC
+  wall(S1, 'z', -4.5, -3.5, 3.5, [[-2.3, -1.1, 1.0, 2.1, true], [1.75, 2.85, 0.9, 2.0, true]], EXT1);   // kitchen window, living window by the front door
   wall(S1, 'z', 4.5, -3.5, 3.5, [[1.3, 2.2, 0.9, 2.1, true]], EXT1);
   wall(S1, 'x', -0.4, -4.43, 4.43, [[-0.9, 1.1, 0, 2.4]]);          // living | kitchen + bath (wide opening into the kitchen, clear of the sofa)
   wall(S1, 'z', 2.0, -3.43, -0.47, [[-1.5, -0.7, 0, 2.1]]);          // kitchen | bath1, door from the kitchen
@@ -688,8 +688,9 @@ function buildHouse() {
   box(0.7, 0.85, 0.45, M.white, 2.85, 0.46, -3.18, S1);                    // bath1 basin
   box(0.35, 0.85, 0.8, M.wood, -4.25, 0.455, 3.0, S1);                     // shoe cabinet by the front door, below the window sill
   box(0.4, 0.5, 1.8, M.wood, -4.23, 0.28, 0.8, S1);                        // TV cabinet
-  box(0.9, 0.42, 2.2, M.furn, -1.6, 0.27, 0.9, S1); box(0.22, 0.85, 2.2, M.furn, -1.15, 0.48, 0.9, S1);  // sofa facing the TV
-  box(0.6, 0.36, 1.0, M.wood, -3.1, 0.24, 0.9, S1);                        // coffee table
+  // sofa facing the TV; it stops 0.6 m short of the stair head so the way in from the front door stays clear
+  box(0.9, 0.42, 1.9, M.furn, -1.6, 0.27, 0.8, S1); box(0.22, 0.85, 1.9, M.furn, -1.15, 0.48, 0.8, S1);
+  box(0.6, 0.36, 1.0, M.wood, -3.1, 0.24, 0.8, S1);                        // coffee table
   const bed = x => { box(1.6, 0.45, 2.1, M.furn, x, 0.28, -2.38, S2); box(1.64, 0.95, 0.1, M.wood, x, 0.52, -3.38, S2); box(1.4, 0.12, 0.4, M.white, x, 0.56, -3.06, S2); };
   bed(-2.75); bed(2.75);
   box(0.6, 2.0, 1.4, M.wood, -4.15, 1.0, -2.6, S2);                        // bed1 wardrobe
