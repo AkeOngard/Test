@@ -1,11 +1,11 @@
 // ESP32 room node for บ้านอัจฉริยะ 3D
-// - controls the bedroom ceiling light (LED/MOSFET on PWM pin, or a relay)
+// - controls the ceiling light in bedroom 1 (floor 2) (LED/MOSFET on PWM pin, or a relay)
 // - reports temperature and humidity from a DHT22
 //
 // Topics (BASE must match "Topic หลัก" in the web app):
-//   BASE/bedroom/light/set     <- {"on":true,"level":60}
-//   BASE/bedroom/light/state   -> {"on":true,"level":60}   (retained)
-//   BASE/bedroom/sensor/state  -> {"temp":26.4,"hum":58}   (retained, every 5 s)
+//   BASE/bed1/light/set     <- {"on":true,"level":60}
+//   BASE/bed1/light/state   -> {"on":true,"level":60}   (retained)
+//   BASE/bed1/sensor/state  -> {"temp":26.4,"hum":58}   (retained, every 5 s)
 //
 // Libraries: PubSubClient (Nick O'Leary), ArduinoJson 7, DHT sensor library (Adafruit)
 
@@ -22,7 +22,7 @@ const char* MQTT_USER   = "";
 const char* MQTT_PASS   = "";
 const char* BASE        = "house3d-xxxx";     // copy from the web app
 
-const char* ROOM = "bedroom";
+const char* ROOM = "bed1";   // room id from the web app: hall, kitchen, bath1, landing, bed1, bath2, bed2, carport
 const int LIGHT_PIN = 25;   // PWM output to LED driver / MOSFET
 const int DHT_PIN   = 4;
 
