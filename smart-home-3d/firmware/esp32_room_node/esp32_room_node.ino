@@ -22,7 +22,7 @@ const char* MQTT_USER   = "";
 const char* MQTT_PASS   = "";
 const char* BASE        = "house3d-xxxx";     // copy from the web app
 
-const char* ROOM = "bed1";   // room id from the web app: hall, kitchen, bath1, landing, bed1, bath2, bed2, carport
+const char* ROOM = "bed1";   // room id from the web app: living, kitchen, bath1, landing, bed1, bath2, bed2, carport
 const int LIGHT_PIN = 25;   // PWM output to LED driver / MOSFET
 const int DHT_PIN   = 4;
 
